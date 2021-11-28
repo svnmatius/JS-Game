@@ -1,0 +1,960 @@
+<!--DOCTYPE html-->
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Bones</title>
+    <style></style>
+</head>
+
+<body>
+	<div id="pics"/>
+	<div>
+    <!-- <canvas id="gameCanvas" width="0" height="0"></canvas> -->
+	<script>
+	
+	// Listeners
+
+	window.requestAnimationFrame(update);
+
+	//Objects
+	
+	class Model {} // The Flour
+	
+	class View {} // The Bun
+	
+	class Controller {} // The Holy Toast
+	
+	class Figure extends Model {			// Mannequins
+		constructor(x,y) {					// x,y (origin), keyframe data, pointer data
+			super();						// nothing to inherit, but it throws a fit if you don't include. Bah.
+			this.x = x;
+			this.y = y;
+			this.keyframes = [];
+			this.pointers = [];
+			}
+		
+		// Methods
+		addNode(a,r,i){						// create an arbitrary node
+			var angKey=Object.keys(  this.keyframes.angles); // ang0, ang1, ang2, ...
+			var radKey=Object.keys(  this.keyframes.radii);  // rad0, rad1, rad2, ...
+			var ang;
+			var rad;
+			for(var j=0; j<angKey.length-1;j++){ // loop thru each keyframe
+				ang=this.keyframes.angles[angKey[j]]; // 
+				rad=this.keyframes.radii[radKey[j]];
+				if(j!=kfB)	ang.push(0);
+				else		ang.push(a);
+				rad.push(r);
+				}
+			// find the pointer which ends in "i"
+			for(var j=0; j<pointerB.length; j++){
+				if (pointerB[j]==i){
+					var pA = pointerB[j] << 8;
+					var pB = (ang.length-1); // convert to HEX
+					pointers.push(pA+pB);
+					}
+				}
+			// handle the root note
+			if(i==0)
+				pointers.push(ang.length-1);
+			}
+		}
+	
+	class VPort extends View {				// Viewports
+		constructor() {				// x,y (origin), width, height
+			super();						// nothing to inherit, but it throws a fit if you don't include. Bah.
+			}
+		}
+	
+	class Canvas extends VPort {
+		constructor(x,y,w,h){
+			super();
+			this.x = x;
+			this.y = y;
+			this.w = w;
+			this.h = h;
+		}
+		ini() {		// create html canvas
+			let iw = window.innerWidth;
+			let ih = window.innerHeight;
+			this.dom = document.createElement("canvas");
+			this.dom.style.position = "fixed";
+			this.dom.style.left = (iw/2) * (1 + 2 * this.x - this.w);	// for scalability, the coordinates x,y are specified as percentage off from center
+			this.dom.style.top  = (ih/2) * (1 + 2 * this.y - this.h);
+			this.dom.style.zIndex = -1;
+			this.ctx = this.dom.getContext("2d");
+			document.body.appendChild(this.dom);
+			}
+		resize() {	// maintain size relative to  window
+			this.dom.width  = this.w*window.innerWidth;
+			this.dom.height = this.h*window.innerHeight;
+			}
+		}
+	
+	var canv = new Canvas(0,0,0.9,0.5); // viewport 1
+	
+	canv.ini();
+	
+	canv.resize();
+	
+	// Global Variables
+	var img=[];
+	var pi = 3.14;
+	var horiz = ht/2;
+	var kfA = 9;
+	var kfB = 0;
+	var active = [0]; // 0: not active or moused-over, 1: moused-over, 2: activated, 3: ready-to-add
+	var sel="None";
+	var pointers = [0x0001,0x0002,0x0103,0x0204,0x0405,0x0306,0x0607,0x0508,0x0009,0x090a,0x0a0b,0x0a0c,0x0b0d,0x0d0e,0x0c0f,0x0f10,0x0e11,0x1012,0x0a13]; // Pointers from Bones to Nodes
+	var pointerA = [0];
+	var pointerB = [0];
+	var xs = [wt/2];
+	var ys = [ht/2];
+	var ang;
+	var animFlag=0;
+	var p=1;
+	var angleToMouse=0;
+	var kfs = [0,1,2,3,4];
+	var kfI = 1;
+	var lastAng;	
+		
+	class Listener extends Controller {
+		listen(){				// set up listeners
+			document.addEventListener("keydown", this.keyPress);
+			document.addEventListener('mousemove', this.getCoordinates);
+			canv.dom.addEventListener("click", this.click);
+			canv.dom.addEventListener("contextmenu", this.rclick);
+			}
+		keyPress(ev){ 			// key definitions
+			p=1;
+			switch(ev.keyCode) {				// key codes
+				case 32: // space bar
+					animFlag=0;
+					break;
+				case 37: // left
+					animFlag=-1;
+					break;
+				case 39: // right
+					animFlag=1;
+					break;
+				case 49: // "1"
+					kfI=0;
+					break;
+				case 50: // "2"
+					kfI=1;
+					break;
+				case 51: // "3"
+					kfI=2;
+					break;
+				case 52: // "4"
+					kfI=3;
+					break;
+				case 53: // "5"
+					kfI=4;
+					break;
+				case 54: // "6"
+					kfI=5;
+					break;
+				case 55: // "7"
+					kfI=6;
+					break;
+				case 56: // "8"
+					kfI=7;
+					break;
+				case 57: // "9"
+					kfI=8;
+					break;
+				case 48: // "0"
+					kfI=9;
+					break;
+				case 192: // "`"
+					kfI=9;
+					break;
+			}
+			sendToPage();
+			}
+		getCoordinates(e){ 		// get mouse coords in canvas
+			const rect = canv.dom.getBoundingClientRect()
+			mousey.x = e.clientX - rect.left
+			mousey.y = e.clientY - rect.top
+			}
+		click(){ 				// when click do stuff
+			animFlag=0;
+			p=1;
+			var flag=0;
+			for(var i=0; i<active.length; i++){
+				if (i==0){ // root node is special
+					if (active[0]==1){
+						active[0]=9
+						break;
+						}
+					if (active[0]==9){
+						active[0]=8;
+						break;
+						}
+					if (active[0]==8){
+						active[0]=0;
+						break;
+						}
+					}
+				switch(active[i]){
+					// if things are active, deactivate
+					case 4:
+						if (!(mouseOver(xs[i],ys[i],5)))
+							setBone(kfB,i,ang[i],lastRad);
+						active[i]=0;
+						break;
+					// if already rclicked
+					case 3:
+						var a=getMouseAngle(i);
+						var r=getMouseDist(i);
+						addNode(a,r,i);
+						active[i]=0;
+						break;
+					case 2:
+						if ((mouseOver(xs[i],ys[i],5)))
+							setBone(kfB,i,lastAng); // set to last angle
+						active[i]=4;
+						break;
+					case 1:
+						active[i]=2;	
+						sel=i;
+						lastAng=ang[i];
+						lastRad=rad[i];
+						break;
+					}
+				}
+			}
+		rclick(){				// when right click, do other stuff
+			event.preventDefault();
+			for(var i=0; i<active.length; i++){
+					// if things are active, deactivate
+					if (active[i]==2){
+						setBone(kfB,i,lastAng,lastRad); // set to last angle
+						active[i]=0;
+						}
+					if (active[i]==3){
+						if (i!=0)
+							deleteNode(i);
+						active[i]=0;}
+					if (active[i]==1){	// if things not active, activate
+						active[i]=3;  	
+						sel=i;
+						}
+				}
+			}
+		}
+
+	var ear1 = new Listener();
+
+	ear1.listen(); // listen for keystrokes
+
+	var skelly1 = new Figure(canv.x+canv.w/2,canv.y+canv.h/2); // place skelly at the center of viewport 1
+
+	skelly1.keyframes = {
+			x: [wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2],
+			y: [ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2],
+			angles: {
+				ang0: [1.881246,0.148067,-0.62134,-0.073425,-0.16925,-0.065016,0.639845,-1.46340,-1.74664,3.003561,-0.039744,1.420488,-2.03262,1.341090,-0.45084,-0.62378,-0.35762,0.618151,0.771777,-0.080068],
+				ang1: [1.866268,-0.56172,0.155714,-0.28341,-0.075425,0.626275,0.0104534,-1.80629,-1.35113,3.003561,-0.039744,-1.19514,1.700014,-1.33048,-0.45084,1.099133,-0.35762,0.618151,0.411073,-0.080068],
+				ang2: [2.032851,-0.68414,0.220062,-0.59249,-0.14274,0.697806,1.002274,-1.75785,-0.96829,2.856206,-0.039744,-0.69675,1.700014,-1.62105,-0.38488,0.723084,-0.35762,0.679073,0.411073,-0.080068],
+				ang3: [1.883142,1.296054,-1.56139,-1.60832,1.166432,1.426811,0.109495,-1.60912,-1.00146,3.003561,-0.057062,-1.91735,2.020257,-1.24243,-0.15588,1.116848,-0.30606,0.584961,-0.23695,-0.080068],
+				ang4: [1.808947,0.325741,-0.62134,-0.13850,-0.35583,1.464350,0.000516752,-1.32130,-1.24549,3.003561,-0.039744,1.876464,-2.04406,1.006921,-0.24649,-0.68426,-0.81330,0.618151,0.411073,0.220612]
+				},
+			radii: {
+				rad0: [50.00000,56.46238,52.49762,137.9129,146.6920,199.3695,185.5117,88.63585,111.1576,50.63596,180.9043,21.01149,26.07261,143.3321,143.6802,147.5073,119.2881,74.02702,80.04793,102.0966],
+				rad1: [50.00000,36.05551,37.57659,155.0025,163.4438,167.4862,210.5750,108.3167,93.40377,50.63596,157.0309,25.27659,26.07261,134.4563,143.6802,145.2957,107.0701,74.02702,80.04793,102.0966],
+				rad2: [50.00000,30.59412,32.80244,143.9263,146.6920,158.3077,176.5924,97.51652,99.85854,50.63596,157.0309,31.90878,26.07261,146.2360,151.2611,135.5730,107.0701,81.36327,80.04793,102.0966],
+				rad3: [50.00000,22.00000,36.05551,192.8376,157.0418,156.9127,173.1485,88.63585,111.1576,50.63596,173.2009,16.15198,18.69812,161.1419,161.9926,145.2957,130.4083,74.02702,80.04793,102.0966],
+				rad4: [50.00000,31.62278,52.49762,142.9843,146.6920,186.4758,219.4857,88.63585,95.82014,50.63596,157.0309,29.63242,26.07261,153.4416,138.6225,151.1563,145.0776,74.02702,80.04793,122.1349]
+				},
+			tAng: {},
+			tRad: {}
+			}
+
+	var ht = canv.h*window.innerHeight;
+	var wt = canv.w*window.innerWidth;
+	var data = canv.ctx.createImageData(wt*2,ht*2);
+
+	var mousey = { // viewport coordinates of the mouse
+			x: 0,
+			y: 0
+			}
+	
+	var skelly = { // the skeleton
+		x: wt/2,
+		y: ht/2,
+		keyframes: {
+			x: [wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2,wt/2],
+			y: [ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2,ht/2],
+			angles: {
+				ang0: [1.881246,0.148067,-0.62134,-0.073425,-0.16925,-0.065016,0.639845,-1.46340,-1.74664,3.003561,-0.039744,1.420488,-2.03262,1.341090,-0.45084,-0.62378,-0.35762,0.618151,0.771777,-0.080068],
+				ang1: [1.866268,-0.56172,0.155714,-0.28341,-0.075425,0.626275,0.0104534,-1.80629,-1.35113,3.003561,-0.039744,-1.19514,1.700014,-1.33048,-0.45084,1.099133,-0.35762,0.618151,0.411073,-0.080068],
+				ang2: [2.032851,-0.68414,0.220062,-0.59249,-0.14274,0.697806,1.002274,-1.75785,-0.96829,2.856206,-0.039744,-0.69675,1.700014,-1.62105,-0.38488,0.723084,-0.35762,0.679073,0.411073,-0.080068],
+				ang3: [1.883142,1.296054,-1.56139,-1.60832,1.166432,1.426811,0.109495,-1.60912,-1.00146,3.003561,-0.057062,-1.91735,2.020257,-1.24243,-0.15588,1.116848,-0.30606,0.584961,-0.23695,-0.080068],
+				ang4: [1.808947,0.325741,-0.62134,-0.13850,-0.35583,1.464350,0.000516752,-1.32130,-1.24549,3.003561,-0.039744,1.876464,-2.04406,1.006921,-0.24649,-0.68426,-0.81330,0.618151,0.411073,0.220612]
+				
+				
+				},
+			radii: {
+				rad0: [50.00000,56.46238,52.49762,137.9129,146.6920,199.3695,185.5117,88.63585,111.1576,50.63596,180.9043,21.01149,26.07261,143.3321,143.6802,147.5073,119.2881,74.02702,80.04793,102.0966],
+				rad1: [50.00000,36.05551,37.57659,155.0025,163.4438,167.4862,210.5750,108.3167,93.40377,50.63596,157.0309,25.27659,26.07261,134.4563,143.6802,145.2957,107.0701,74.02702,80.04793,102.0966],
+				rad2: [50.00000,30.59412,32.80244,143.9263,146.6920,158.3077,176.5924,97.51652,99.85854,50.63596,157.0309,31.90878,26.07261,146.2360,151.2611,135.5730,107.0701,81.36327,80.04793,102.0966],
+				rad3: [50.00000,22.00000,36.05551,192.8376,157.0418,156.9127,173.1485,88.63585,111.1576,50.63596,173.2009,16.15198,18.69812,161.1419,161.9926,145.2957,130.4083,74.02702,80.04793,102.0966],
+				rad4: [50.00000,31.62278,52.49762,142.9843,146.6920,186.4758,219.4857,88.63585,95.82014,50.63596,157.0309,29.63242,26.07261,153.4416,138.6225,151.1563,145.0776,74.02702,80.04793,122.1349]
+				
+				
+				},
+			tAng: {},
+			tRad: {}
+			}
+		}
+	
+	
+	var angsFirst=[];
+	for(var i=0; i<Object.values(skelly.keyframes.angles).length; i++)
+		angsFirst[Object.keys(skelly.keyframes.angles)[i]]=Object.values(skelly.keyframes.angles)[i];
+	
+		
+	function addInputs(){							// add a file input for each kf
+		var pics = document.getElementById("pics");
+		for(var i=0; i<Object.keys(  skelly.keyframes.angles).length; i++){
+			var node=document.createElement("input");
+			var br=document.createElement("br");
+			node.type="file";
+			node.id=i;
+			pics.appendChild(node);
+			pics.appendChild(br);
+			}
+		var inp = pics.getElementsByTagName("input");
+		for(var i=0; i<inp.length; i++){
+			inp[i].onchange = function(e) {
+				img[this.id] = new Image();
+				img[this.id].src = URL.createObjectURL(this.files[0]);
+				};
+			}
+		}
+	function drawInp(i) {							// draw a user-uploaded image
+	if(i!==undefined){
+	  var iWt=i.width;
+	  var iHt=i.height;
+	  if ((iWt-wt)<(iHt-ht)) // if taller than wide
+		  var scale = ht/iHt;
+	  else
+		  var scale = wt/iWt;
+	  canv.ctx.drawImage(i, (wt-scale*iWt)/2,(ht-scale*iHt)/2,scale*iWt,scale*iHt);
+	}}
+	//function resize(){ 								// maintain size relative to  window
+	//	canv.w  = 1*window.innerWidth;
+	//	canv.h = 0.5*window.innerHeight;
+	//}
+	/*function getCoordinates(e){ 				// get mouse coords in canvas
+		const rect = canv.dom.getBoundingClientRect()
+		mousey.x = e.clientX - rect.left
+		mousey.y = e.clientY - rect.top
+		}*/
+	/*function keyPress(ev){ 							// key definitions
+			p=1;
+			switch(ev.keyCode) {
+				case 32: // space bar
+					animFlag=0;
+					break;
+				case 37: // left
+					animFlag=-1;
+					break;
+				case 39: // right
+					animFlag=1;
+					break;
+				case 49: // "1"
+					kfI=0;
+					break;
+				case 50: // "2"
+					kfI=1;
+					break;
+				case 51: // "3"
+					kfI=2;
+					break;
+				case 52: // "4"
+					kfI=3;
+					break;
+				case 53: // "5"
+					kfI=4;
+					break;
+				case 54: // "6"
+					kfI=5;
+					break;
+				case 55: // "7"
+					kfI=6;
+					break;
+				case 56: // "8"
+					kfI=7;
+					break;
+				case 57: // "9"
+					kfI=8;
+					break;
+				case 48: // "0"
+					kfI=9;
+					break;
+				case 192: // "`"
+					kfI=9;
+					break;
+			}
+			sendToPage();
+		}*/
+	/*function click(){ 								// when click do stuff
+		animflag=0;
+		p=1;
+		var flag=0;
+		for(var i=0; i<active.length; i++){
+			if (i==0){ // root node is special
+				if (active[0]==1){
+					active[0]=9
+					break;
+					}
+				if (active[0]==9){
+					active[0]=8;
+					break;
+					}
+				if (active[0]==8){
+					active[0]=0;
+					break;
+					}
+				}
+			switch(active[i]){
+				// if things are active, deactivate
+				case 4:
+					if (!(mouseOver(xs[i],ys[i],5)))
+						setBone(kfB,i,ang[i],lastRad);
+					active[i]=0;
+					break;
+				// if already rclicked
+				case 3:
+					var a=getMouseAngle(i);
+					var r=getMouseDist(i);
+					addNode(a,r,i);
+					active[i]=0;
+					break;
+				case 2:
+					if ((mouseOver(xs[i],ys[i],5)))
+						setBone(kfB,i,lastAng); // set to last angle
+					active[i]=4;
+					break;
+				case 1:
+					active[i]=2;	
+					sel=i;
+					lastAng=ang[i];
+					lastRad=rad[i];
+					break;
+				}
+			}
+		}*/
+	/*function rclick(){								// when right click, do other stuff
+		event.preventDefault();
+		for(var i=0; i<active.length; i++){
+				// if things are active, deactivate
+				if (active[i]==2){
+					setBone(kfB,i,lastAng,lastRad); // set to last angle
+					active[i]=0;
+					}
+				if (active[i]==3){
+					if (i!=0)
+						deleteNode(i);
+					active[i]=0;}
+				if (active[i]==1){	// if things not active, activate
+					active[i]=3;  	
+					sel=i;
+					}
+			}
+		}*/
+	function addNode(a,r,i){						// create an arbitrary node
+		var angKey=Object.keys(  skelly.keyframes.angles); // ang0, ang1, ang2, ...
+		var radKey=Object.keys(  skelly.keyframes.radii);  // rad0, rad1, rad2, ...
+		var ang;
+		var rad;
+		for(var j=0; j<angKey.length-1;j++){ // loop thru each keyframe
+			ang=skelly.keyframes.angles[angKey[j]]; // 
+			rad=skelly.keyframes.radii[radKey[j]];
+			if(j!=kfB)	ang.push(0);
+			else		ang.push(a);
+			rad.push(r);
+			}
+		// find the pointer which ends in "i"
+		for(var j=0; j<pointerB.length; j++){
+			if (pointerB[j]==i){
+				var pA = pointerB[j] << 8;
+				var pB = (ang.length-1); // convert to HEX
+				pointers.push(pA+pB);
+				}
+			}
+		// handle the root note
+		if(i==0)
+			pointers.push(ang.length-1);
+		}
+	function deleteNode(i){							// delete an arbitrary node
+		var angKey=Object.keys(  skelly.keyframes.angles);
+		var radKey=Object.keys(  skelly.keyframes.radii);
+		var found=[i];
+		var flag;
+		var del=[];
+		for(var j=0; j<pointers.length; j++){ // find the pointers downstream from i
+			for(var k=0; k<found.length; k++){
+				flag=0;
+				if (found[k]==pointerA[j]){
+					for(var h=0; h<found.length; h++)
+						if (found[h]==pointerB[j])
+							flag=1;
+					if (flag==0){
+						found.push(pointerB[j]);
+						j=0;
+						}
+					}
+				}
+			}		
+		for(var j=0; j<found.length; j++){ // delete upstream pointers
+			for(var k=0; k<pointerB.length; k++){ // check each pointerB
+				if(pointerB[k]==found[j]){ // if match with the node to be deleted
+					for(var h=0; h<angKey.length-1; h++){ // go through all kfs
+						skelly.keyframes.angles[angKey[h]].splice([found[j]],1); // delete the node in the angles array
+						skelly.keyframes.radii [radKey[h]].splice([found[j]],1); // delete the node in the radii array
+						}
+					for(var h=0; h<pointers.length; h++){ // re-assign the pointers
+						if (pointerB[h]>found[j]){ // re-assign pointerB
+							pointerB[h]--; 
+							pointers[h] = (pointers[h] & 0xFF00) + (pointerB[h]);
+							}
+						if (pointerA[h]>found[j]){ // re-assign pointerA
+							pointerA[h]--; 
+							pointers[h] = (pointers[h] & 0x00FF) + ((pointerA[h]) << 8);
+							}
+						}
+					for(var h=0; h<found.length; h++) // reduce the pointer references
+						if (found[h]>found[j])	found[h]--;
+					found.splice(j,1); // delete the found item
+					pointerB.splice(k,1); // delete ptB at k
+					pointerA.splice(k,1); // delete ptA at k
+					pointers.splice(k,1); // delete pts at k
+					active.pop();
+					j=-1; // because the for loop will add one to this;
+					break;
+					}
+				}
+			}
+		}
+	function interPol(kf0,kf1,p){					// interpolate between frames "A" and "B". Accepts and returns arrays
+		var kf = [];
+		for(var i=0; i<kf0.length; i++){
+			if (kf0[i]===null){
+				if (kf1[i]===null){
+					kf.push(0);
+					console.log("error: both keyframes were null, returned 0");
+					}
+				else
+					kf.push(kf[i]);
+				}
+			else if (kf1[i]===null)
+				kf.push(kf0[i]);
+			else
+				kf.push(kf0[i]+(kf1[i]-kf0[i])*p)
+			}
+		return kf;
+		}
+	function createTangents(){						// create tangents to be used in hermite splines
+		var angKey=Object.keys(  skelly.keyframes.angles);
+		var angVal=Object.values(skelly.keyframes.angles);
+		var radKey=Object.keys(  skelly.keyframes.radii );
+		var radVal=Object.values(skelly.keyframes.radii );
+		var len=angVal.length;
+		for (var i=0; i<len; i++){
+			var mAng = [];
+			var mRad = [];
+			var strAng = "tanAng" + i;
+			var strRad = "tanRad" + i;
+			//if ((i<len-1)&&(angVal[i]==angsFirst[angKey[i]]))
+			//	skelly.keyframes.angles[angKey[i]] = adjustAngles(angVal[i],angVal[i+1]);
+			//alert(angKey[i]);
+			for (var j=0; j<angVal[i].length; j++){
+				if (i==0){
+					mAng0=(angVal[i][j]-angVal[len-1][j]);
+					mRad0=(radVal[i][j]-radVal[len-1][j]);
+					}
+				else{
+					mAng0=(angVal[i][j]-angVal[i-1][j]);
+					mRad0=(radVal[i][j]-radVal[i-1][j]);
+					}
+				if (i==len-1){
+					mAng1=(angVal[0][j]-angVal[i][j]);
+					mRad1=(radVal[0][j]-radVal[i][j]);
+					}
+				else{
+					mAng1=(angVal[i+1][j]-angVal[i][j]);
+					mRad1=(radVal[i+1][j]-radVal[i][j]);
+					}
+				mAng.push((mAng1+mAng0)/2);
+				mRad.push((mRad1+mRad0)/2);
+				}
+			skelly.keyframes.tAng[strAng]=mAng;
+			skelly.keyframes.tRad[strRad]=mRad;
+			}
+		}
+	function interPolCubic(kf,p){
+	var h00=2*p**3-3*p**2+1;
+	var h10=p**3-2*p**2+p;
+	var h01=-2*p**3+3*p**2;
+	var h11=p**3-p**2;
+	var angKey=Object.keys(  skelly.keyframes.angles);
+	var angVal=Object.values(skelly.keyframes.angles);
+	var radKey=Object.keys(  skelly.keyframes.radii );
+	var radVal=Object.values(skelly.keyframes.radii );
+	var tAngKy=Object.keys(  skelly.keyframes.tAng  );
+	var tAngVl=Object.values(skelly.keyframes.tAng  );
+	var tRadKy=Object.keys(  skelly.keyframes.tRad  );
+	var tRadVl=Object.values(skelly.keyframes.tRad  );
+	var len=angVal[0].length;
+	var lenKF=kfs.length;
+	var angOut=[];
+	var radOut=[];
+	for(var i=0; i<len; i++){
+		//alert(angVal[i]);
+		if (kf==0){
+			mAng0 = tAngVl[lenKF-1][i];
+			pAng0 = angVal[lenKF-1][i];
+			}
+		else{
+			var mAng0 = tAngVl[kf][i];
+			var pAng0 = angVal[kf][i];
+			}
+		if (kf==lenKF-1){
+			mAng1 = tAngVl[0][i];
+			pAng1 = angVal[0][i];
+			}
+		else{
+			var mAng1 = tAngVl[kf+1][i];
+			var pAng1 = angVal[kf+1][i];
+			}		
+		angOut.push(h00*pAng0+h10*mAng0+h01*pAng1+h11*mAng1);
+		}
+	return angOut;
+	}
+	function LAMP(i,j,p){							// smaller interpol, accepts and returns scalar
+		return (i + ( j - i ) * p);
+		}
+	function aang(){
+		var angKey=Object.keys(  skelly.keyframes.angles);
+		var angVal=Object.values(skelly.keyframes.angles);
+		var len=angVal.length;
+		for (var i=0; i<len-1; i++){			// i is frame
+			for(var j=0; j<angVal[0].length; j++){				// j is node
+				if (i==len-1)
+					q=0;
+				else
+					q=i+1;
+				var p0 = angVal[i][j]
+				var p1 = angVal[q][j]
+				if ((Math.abs(p0-p1)>pi)){
+					if (p0>0)
+						for (var k=0; k<=i; k++)
+							skelly.keyframes.angles[angKey[k]][j] = skelly.keyframes.angles[angKey[k]][j]-2*pi;
+					else
+						for (var k=0; k<=i; k++)
+							skelly.keyframes.angles[angKey[k]][j] = skelly.keyframes.angles[angKey[k]][j]+2*pi;
+					i=0;
+					j=0;
+					}
+			}
+		}
+	}
+	aang();
+	function adjustAngles(kf0,kf1){					// adjust whether going clockwise or anticlockwise depending on shortest angular distance
+		var kf = [];
+		for(var i=0; i<kf0.length; i++){
+				kf0[i]=kf0[i] % (pi*2);
+				kf1[i]=kf1[i] % (pi*2);
+			if (Math.abs(kf0[i]-kf1[i])>pi)
+				if (kf0[i]>0)
+					kf[i]=kf0[i]-2*pi;	// go clockwise
+				else
+					kf[i]=kf0[i]+2*pi;	// go anti-clockwise
+			else kf[i]=kf0[i];
+			}
+		return kf;
+		}
+	function skeleton(pointers,angle,rads){ 		// make skeleton
+		var ang = [];
+		xs = [];
+		ys = [];
+		for(var i=0; i<angle.length; i++)
+			ang[i] = angle[i];
+		xs[0] = skelly.x; // + rads[0]*Math.cos(ang[0]);
+		ys[0] = skelly.y; // + rads[0]*Math.sin(ang[0]);
+		for(var i=0; i<pointers.length; i++){
+			var a = pointers[i] >> 8;
+			var b = pointers[i] & 0x00FF;
+			pointerA[i] = a;
+			pointerB[i] = b;
+			ang[b] += ang[a]; // convert relative angle list to absolute angle
+			}
+		for(var i=0; i<pointers.length; i++){
+			var a=pointerA[i];
+			var b=pointerB[i];
+			xs[b] = xs[a] + rads[b]*Math.cos(ang[b]);
+			ys[b] = ys[a] + rads[b]*Math.sin(ang[b]);
+			}
+		}
+	function draw(pa,pb,xs,ys){						// draw skeleton and mouse node
+		// background stuff
+		canv.ctx.clearRect(0,0,wt,ht);
+		canv.ctx.fillStyle = "lightgrey";
+		canv.ctx.fillRect(0,0,wt,ht);
+		// background image
+		for(var i=0; i<Object.keys(  skelly.keyframes.angles).length; i++)
+			if (kfB==i)
+				drawInp(img[i]);
+		// lines and circles
+		canv.ctx.lineWidth = 1;
+		canv.ctx.stroke();
+		canv.ctx.beginPath();
+		// draw bones
+		for(var i=0; i<pa.length; i++){
+			canv.ctx.moveTo(xs[pa[i]],ys[pa[i]]);
+			canv.ctx.lineTo(xs[pb[i]],ys[pb[i]]);
+			}
+		canv.ctx.closePath();
+		canv.ctx.stroke();
+		// draw joints
+		for(var i=0; i<active.length; i++){
+			switch(active[i]){
+				case 0:
+					canv.ctx.fillStyle = "green";
+					break;
+				case 1:
+					canv.ctx.fillStyle = "red";
+					break;
+				case 2:
+					canv.ctx.fillStyle = "blue";
+					break;
+				case 3:
+					canv.ctx.fillStyle = "yellow";
+					break;
+				case 4:
+					canv.ctx.fillStyle = "white";
+					break;
+				case 5:
+					canv.ctx.fillStyle = "purple";
+					break;
+				case 8:
+					canv.ctx.fillStyle = "purple";
+					break;
+				case 9:
+					canv.ctx.fillStyle = "pink";
+					break;
+				}
+			draw_circle(xs[i],ys[i]);
+			//draw the active 3 line to mouse
+			if (active[pb[i]]==3){ 
+				canv.ctx.beginPath();
+				canv.ctx.moveTo(xs[pb[i]],ys[pb[i]]);
+				canv.ctx.lineTo(mousey.x,mousey.y);
+				canv.ctx.closePath();
+				canv.ctx.stroke();
+				}
+			if (active[0]==3){
+				canv.ctx.beginPath();
+				canv.ctx.moveTo(skelly.x,skelly.y);
+				canv.ctx.lineTo(mousey.x,mousey.y);
+				canv.ctx.closePath();
+				canv.ctx.stroke();
+				}
+			}
+		}
+	function draw_circle(x,y){						// draw a circle
+		canv.ctx.beginPath();
+		canv.ctx.arc(x,y, 5, 0, 3.1*2);
+		canv.ctx.closePath();
+		canv.ctx.fill();
+		canv.ctx.stroke();
+		}
+	function mouseOver(x,y,r){						// check mouse is within 2r of node center
+		var dist = Math.sqrt(((mousey.x-x)*(mousey.x-x))+((mousey.y-y)*(mousey.y-y)));
+		if (dist<=r)
+			return true;
+		else
+			return false;
+		}
+	function mouseVector(x,y){						// calculate vector angle from active node to mouse
+		angleToMouse = Math.atan((mousey.y-y)/(mousey.x-x));
+			if (mousey.x < x)
+			angleToMouse = angleToMouse + 3.14;
+		return angleToMouse;
+		}
+	function animate(){								// progress through animation frames
+		if (animFlag==1)	p+=0.02;
+		if (animFlag==-1)	p-=0.02;
+		if (p>1){
+			kfI++;
+			p=0;
+			}
+		if (p<0){
+			kfI--;
+			p=1;
+			}
+		if (kfI>kfs.length-1)	kfI=0;
+		if (kfI<0)				kfI=kfs.length-1;
+		if (kfI<kfs.length-1)	kfB = kfs[kfI+1];
+		else					kfB = kfs[0];
+		kfA = kfs[kfI];
+		}
+	function getActive(r){							// get the active node and do stuff
+		var flag=-1;
+		for(var i=0; i<pointerB.length; i++){
+			var m = mouseOver(xs[pointerB[i]],ys[pointerB[i]],r);
+			if((active[pointerB[i]]!=3)&&(active[pointerB[i]]!=2)&&(active[pointerB[i]]!=4)){
+			if(m)	active[pointerB[i]]=1;
+			else   	active[pointerB[i]]=0;}
+			else if (active[pointerB[i]]!=3) flag=i;
+			}
+		return flag;
+		}
+	function setBone(kf,b,a,r){						// set bone angle to specified
+		var angKey=Object.keys(  skelly.keyframes.angles)[kf];
+		var angVal=Object.values(skelly.keyframes.angles)[kf];
+		var radKey=Object.keys(  skelly.keyframes.radii )[kf];
+		var radVal=Object.values(skelly.keyframes.radii )[kf];
+		if (active[b]==2)
+			angVal[b]=a;
+		if (active[b]==4)
+			radVal[b]=r;
+		skelly.keyframes.angles[angKey]=angVal;
+		skelly.keyframes.radii[radKey]=radVal;
+		}
+	function setOrigin(){							// deal with that tricky root node
+	if (active[0]==9){
+		skelly.keyframes.x[kfB]=mousey.x;
+		skelly.keyframes.y[kfB]=mousey.y;
+		}
+	if (active[0]==8){
+		var angKey=Object.keys(  skelly.keyframes.angles)[kfB];
+		var angVal=Object.values(skelly.keyframes.angles)[kfB];
+		var xx=skelly.keyframes.x[kfB];
+		var yy=skelly.keyframes.y[kfB];
+		angVal[0]=mouseVector(xx,yy)
+		skelly.keyframes.angles[angKey]=angVal;
+		}
+	if ((mouseOver(xs[0],ys[0],5))&&(active[0]==0))
+		active[0]=1;
+	}
+	function getMouseAngle(i){						// get the bone angle from mouse angle
+		var ang0;
+		if (i!=0){
+			var k;
+			for(var m=0; m<pointerB.length; m++) // need 3 points to calc angle needed because angles are sums
+			if (pointerB[m]==i) k=m; // get the previous node
+			k = pointerA[k];
+			var ang0 = Math.atan((ys[i]-ys[k])/(xs[i]-xs[k])) // previous angle
+			if (xs[i] < xs[k])
+				ang0 = ang0 + 3.14;
+			}
+		else {ang0=ang[0];} // handle the root node a bit differently
+		mouseVector(xs[i],ys[i]); // get angToMouse
+		var result = angleToMouse-ang0;
+		if (result>3.14) result-=2*3.14;
+		if (result<-3.14) result+=2*3.14;
+		return result;
+	}
+	function getMouseDist(i){						// get the bone distance
+		return Math.sqrt((xs[i]-mousey.x)**2+(ys[i]-mousey.y)**2)
+		}
+	function update(){								// main loop
+		animate();
+		setOrigin();
+		var angA=Object.values(skelly.keyframes.angles)[kfA];
+		var angB=Object.values(skelly.keyframes.angles)[kfB];
+		var radA=Object.values(skelly.keyframes.radii)[kfA];
+		var radB=Object.values(skelly.keyframes.radii)[kfB];
+		var rtXA=skelly.keyframes.x[kfA];
+		var rtXB=skelly.keyframes.x[kfB];
+		var rtYA=skelly.keyframes.y[kfA];
+		var rtYB=skelly.keyframes.y[kfB];
+		angA = adjustAngles( angA,angB);
+		
+		createTangents();
+		ang = interPolCubic(kfB,p);
+		//ang=interPol( angA,angB,p);
+		rad=interPol( radA,radB,p);
+		
+		skelly.x=LAMP(rtXA,rtXB,p);
+		skelly.y=LAMP(rtYA,rtYB,p);
+		skeleton(pointers,ang,rad);
+	
+		//draw_circle(skelly.x,skelly.y,5);
+		var aa = pointerA[getActive(10)];
+		var bb = pointerB[getActive(10)];
+		var mousAng = getMouseAngle(aa);
+		var mousRad = getMouseDist(aa);
+		
+		setBone(kfB,bb,mousAng,mousRad);
+		sendToPage();
+		draw(pointerA,pointerB,xs,ys);
+		
+		window.requestAnimationFrame(update);
+		}
+	function sendToPage(){							// specify what to send to outside canvas
+		var aKey = Object.keys(skelly.keyframes.angles)[kfB];
+		var rKey = Object.keys(skelly.keyframes.radii)[kfB];
+		var a = skelly.keyframes.angles[aKey];
+		var r = skelly.keyframes.radii[rKey];
+		var aa = [];
+		var rr = [];
+		var pt = [];
+		for(var i=0;i<a.length;i++){
+			var x = parseFloat(a[i]);
+			var y = parseFloat(r[i]);
+			var xPrec = 7;
+			var yPrec = 7;
+			if ((x<=-1)||((x>0)&&(x<1))) 	xPrec=6;
+			if ((-1<x)&&(x<0)) 				xPrec=5;
+			if ((y<=-1)||((y>0)&&(y<1))) 	yPrec=6;
+			if ((-1<y)&&(y<0)) 				yPrec=5;
+			//if (-1<y<0) yPrec=4;
+			x = String(x.toPrecision(xPrec));
+			y = String(y.toPrecision(yPrec));
+			aa[i] = x;
+			rr[i] = y;
+			}
+		for(var i=0; i<pointers.length; i++){
+			var aq = (pointers[i] >> 8);
+			var bq = (pointers[i] & 0x00FF);
+			var aqq = aq.toString(16);
+			var bqq = bq.toString(16);
+			if (aq<16) aq = "0" + aqq;
+			else aq = aqq;
+			if (bq<16) bq = "0" + bqq;
+			else bq = bqq;
+			pt.push("0x" + aq + "" + bq);
+			}
+		updateFields('rads',"[" + rr + "]");
+		updateFields('angs',"[" + aa + "]");
+		updateFields('frame','kfA: ' + kfA + ' kfB: ' + kfB);
+		updateFields('p','% from kfA to kfB: ' + p.toPrecision(2));
+		updateFields('pt',pt);
+		updateFields('active','active: ' + active);
+		}
+	function updateFields(id,str){					// send to HTML outside canvas
+		document.getElementById(id).innerHTML = str;
+		}
+	
+	addInputs();
+	</script>
+	</div>
+	<div style="position: absolute; bottom: 0; background: grey">
+	<div style="font-family:'Courier New'" id="frame">(frame goes here)</div>
+	<div style="font-family:'Courier New'" id="angs">(angle goes here)</div>
+	<div style="font-family:'Courier New'" id="rads">(radii go   here)</div>
+	<div style="font-family:'Courier New'" id="pt"></div>
+	<div style="font-family:'Courier New'" id="p"></div>
+
+	<div style="font-family:'Courier New'" id="active"></div>
+	</div>
+</body>
+
+</html>
